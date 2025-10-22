@@ -671,6 +671,7 @@ public class GLSLParser {
                 case KEYWORD_MAT4:
                 case KEYWORD_SAMPLER2D:
                     return;
+                default://???
             }
             
             advance();

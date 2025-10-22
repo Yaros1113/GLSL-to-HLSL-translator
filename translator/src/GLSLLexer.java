@@ -7,62 +7,6 @@ public class GLSLLexer {
     private final List<Token> tokens = new ArrayList<>();
     private static final Pattern TOKEN_PATTERNS;
     
-    // Типы токенов
-    public enum TokenType {
-        // Ключевые слова
-        KEYWORD_VOID, KEYWORD_FLOAT, KEYWORD_INT, KEYWORD_BOOL, 
-        KEYWORD_VEC2, KEYWORD_VEC3, KEYWORD_VEC4,
-        KEYWORD_MAT2, KEYWORD_MAT3, KEYWORD_MAT4,
-        KEYWORD_SAMPLER2D, KEYWORD_SAMPLERCUBE,
-        KEYWORD_IF, KEYWORD_ELSE, KEYWORD_FOR, KEYWORD_WHILE, 
-        KEYWORD_DO, KEYWORD_RETURN, KEYWORD_BREAK, KEYWORD_CONTINUE,
-        KEYWORD_UNIFORM, KEYWORD_ATTRIBUTE, KEYWORD_VARYING,
-        KEYWORD_IN, KEYWORD_OUT, KEYWORD_INOUT,
-        KEYWORD_STRUCT,
-        
-        // Операторы
-        OP_PLUS, OP_MINUS, OP_MULT, OP_DIV, OP_ASSIGN, OP_EQ, OP_NE, 
-        OP_LT, OP_GT, OP_LE, OP_GE, OP_AND, OP_OR, OP_NOT, 
-        OP_INC, OP_DEC, OP_PLUS_ASSIGN, OP_MINUS_ASSIGN, OP_MULT_ASSIGN, OP_DIV_ASSIGN,
-        
-        // Разделители
-        LPAREN, RPAREN, LBRACE, RBRACE, LBRACKET, RBRACKET, 
-        COMMA, SEMICOLON, COLON, DOT,
-        
-        // Литералы
-        FLOAT_LITERAL, INT_LITERAL, BOOL_LITERAL, STRING_LITERAL,
-        
-        // Идентификаторы
-        IDENTIFIER,
-        
-        // Прочее
-        PREPROCESSOR_DIRECTIVE,
-        
-        // Конец файла
-        EOF
-    }
-    
-    // Класс токена
-    public static class Token {
-        public final TokenType type;
-        public final String value;
-        public final int line;
-        public final int column;
-        
-        public Token(TokenType type, String value, int line, int column) {
-            this.type = type;
-            this.value = value;
-            this.line = line;
-            this.column = column;
-        }
-        
-        @Override
-        public String toString() {
-            return String.format("Token[%s, '%s'] (line %d, col %d)", 
-                    type, value, line, column);
-        }
-    }
-    
     // Статическая инициализация регулярных выражений
     static {
         // Компилируем все шаблоны в один большой RegEx
