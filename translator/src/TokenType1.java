@@ -1,4 +1,6 @@
 // Типы токенов
+// ДОЛЖЕН ОБРАБАТЫВАТЬ КОММЕНТАРИИ, тесты: МИНИМУМ 15 симв, 5 РАБОЧИХ, 5 НЕ РАБОЧИХ текстов
+
 public enum TokenType1 {
     // Ключевые слова (мб только void float int bool sampler2D samplerCube?)
     KEYWORD_VOID, KEYWORD_FLOAT, KEYWORD_INT, KEYWORD_BOOL, 
