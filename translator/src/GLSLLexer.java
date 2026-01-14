@@ -12,14 +12,14 @@ public class GLSLLexer {
         // Компилируем все шаблоны в один большой RegEx
         String patterns = 
             "(?<PREPROCESSOR>#.*)" + "|" +
-            "(?<KEYWORD>\\b(void|float|int|bool|vec2|vec3|vec4|mat2|mat3|mat4|sampler2D|samplerCube|" +
+            "(?<KEYWORD>\\b(void|float|int|bool|sampler2D|samplerCube|" + //vec2|vec3|vec4|mat2|mat3|mat4|
             "if|else|for|while|do|return|break|continue|uniform|attribute|varying|in|out|inout|struct)\\b)" + "|" +
             "(?<BOOL>\\b(true|false)\\b)" + "|" +
             "(?<FLOAT>\\d+\\.\\d*([eE][-+]?\\d+)?|\\d*\\.\\d+([eE][-+]?\\d+)?|\\d+[eE][-+]?\\d+)" + "|" +
             "(?<INT>\\b\\d+\\b)" + "|" +
             "(?<STRING>\"([^\"\\\\]|\\\\.)*\")" + "|" +
             "(?<OP>\\+\\+|--|\\+=|-=|\\*=|/=|==|!=|<=|>=|&&|\\|\\||[+\\-*/=<>!&|])" + "|" +
-            "(?<SEPARATOR>[\\(\\)\\{\\}\\[\\],;:\\.])" + "|" +
+            "(?<SEPARATOR>[\\(\\)\\{\\}\\[\\],;:\\.?])" + "|" +
             "(?<IDENTIFIER>\\b[a-zA-Z_]\\w*\\b)" + "|" +
             "(?<COMMENT>//.*|/\\*[\\s\\S]*?\\*/)" + "|" +
             "(?<WHITESPACE>\\s+)" + "|" +
@@ -60,26 +60,26 @@ public class GLSLLexer {
             
             // Обработка найденных групп
             if (matcher.group("PREPROCESSOR") != null) {
-                tokens.add(new Token(TokenType.PREPROCESSOR_DIRECTIVE, 
+                tokens.add(new Token(TokenType1.PREPROCESSOR_DIRECTIVE,
                                     matcher.group(), line, column));
             }
             else if (matcher.group("KEYWORD") != null) {
                 tokens.add(createKeywordToken(matcher.group(), line, column));
             }
             else if (matcher.group("BOOL") != null) {
-                tokens.add(new Token(TokenType.BOOL_LITERAL, 
+                tokens.add(new Token(TokenType1.BOOL_LITERAL,
                                     matcher.group(), line, column));
             }
             else if (matcher.group("FLOAT") != null) {
-                tokens.add(new Token(TokenType.FLOAT_LITERAL, 
+                tokens.add(new Token(TokenType1.FLOAT_LITERAL,
                                     matcher.group(), line, column));
             }
             else if (matcher.group("INT") != null) {
-                tokens.add(new Token(TokenType.INT_LITERAL, 
+                tokens.add(new Token(TokenType1.INT_LITERAL,
                                     matcher.group(), line, column));
             }
             else if (matcher.group("STRING") != null) {
-                tokens.add(new Token(TokenType.STRING_LITERAL, 
+                tokens.add(new Token(TokenType1.STRING_LITERAL,
                                     matcher.group(), line, column));
             }
             else if (matcher.group("OP") != null) {
@@ -89,7 +89,7 @@ public class GLSLLexer {
                 tokens.add(createSeparatorToken(matcher.group(), line, column));
             }
             else if (matcher.group("IDENTIFIER") != null) {
-                tokens.add(new Token(TokenType.IDENTIFIER, 
+                tokens.add(new Token(TokenType1.IDENTIFIER,
                                     matcher.group(), line, column));
             }
             else if (matcher.group("COMMENT") != null) {
@@ -102,63 +102,64 @@ public class GLSLLexer {
                 continue;
             }
             else if (matcher.group("UNKNOWN") != null) {
-                throw new RuntimeException("Unexpected character at line " + 
+                throw new RuntimeException("Unexpected character at line " +
                     line + ", column " + column + ": '" + matcher.group() + "'");
             }
         }
-        
-        tokens.add(new Token(TokenType.EOF, "", line, pos - lineStart + 1));
+
+        tokens.add(new Token(TokenType1.EOF, "", line, pos - lineStart + 1));
         return tokens;
     }
-    
+
     private Token createKeywordToken(String value, int line, int column) {
         return new Token(
-            TokenType.valueOf("KEYWORD_" + value.toUpperCase()), 
+            TokenType1.valueOf("KEYWORD_" + value.toUpperCase()),
             value, line, column
         );
     }
-    
+
     private Token createOperatorToken(String value, int line, int column) {
-        TokenType type = switch (value) {
-            case "++" -> TokenType.OP_INC;
-            case "--" -> TokenType.OP_DEC;
-            case "+=" -> TokenType.OP_PLUS_ASSIGN;
-            case "-=" -> TokenType.OP_MINUS_ASSIGN;
-            case "*=" -> TokenType.OP_MULT_ASSIGN;
-            case "/=" -> TokenType.OP_DIV_ASSIGN;
-            case "==" -> TokenType.OP_EQ;
-            case "!=" -> TokenType.OP_NE;
-            case "<=" -> TokenType.OP_LE;
-            case ">=" -> TokenType.OP_GE;
-            case "&&" -> TokenType.OP_AND;
-            case "||" -> TokenType.OP_OR;
-            case "+" -> TokenType.OP_PLUS;
-            case "-" -> TokenType.OP_MINUS;
-            case "*" -> TokenType.OP_MULT;
-            case "/" -> TokenType.OP_DIV;
-            case "=" -> TokenType.OP_ASSIGN;
-            case "<" -> TokenType.OP_LT;
-            case ">" -> TokenType.OP_GT;
-            case "!" -> TokenType.OP_NOT;
-            case "&" -> TokenType.OP_AND;
-            case "|" -> TokenType.OP_OR;
+        TokenType1 type = switch (value) {
+            case "++" -> TokenType1.OP_INC;
+            case "--" -> TokenType1.OP_DEC;
+            case "+=" -> TokenType1.OP_PLUS_ASSIGN;
+            case "-=" -> TokenType1.OP_MINUS_ASSIGN;
+            case "*=" -> TokenType1.OP_MULT_ASSIGN;
+            case "/=" -> TokenType1.OP_DIV_ASSIGN;
+            case "==" -> TokenType1.OP_EQ;
+            case "!=" -> TokenType1.OP_NE;
+            case "<=" -> TokenType1.OP_LE;
+            case ">=" -> TokenType1.OP_GE;
+            case "&&" -> TokenType1.OP_AND;
+            case "||" -> TokenType1.OP_OR;
+            case "+" -> TokenType1.OP_PLUS;
+            case "-" -> TokenType1.OP_MINUS;
+            case "*" -> TokenType1.OP_MULT;
+            case "/" -> TokenType1.OP_DIV;
+            case "=" -> TokenType1.OP_ASSIGN;
+            case "<" -> TokenType1.OP_LT;
+            case ">" -> TokenType1.OP_GT;
+            case "!" -> TokenType1.OP_NOT;
+            case "&" -> TokenType1.OP_AND;
+            case "|" -> TokenType1.OP_OR;
             default -> throw new RuntimeException("Unknown operator: " + value);
         };
         return new Token(type, value, line, column);
     }
-    
+
     private Token createSeparatorToken(String value, int line, int column) {
-        TokenType type = switch (value) {
-            case "(" -> TokenType.LPAREN;
-            case ")" -> TokenType.RPAREN;
-            case "{" -> TokenType.LBRACE;
-            case "}" -> TokenType.RBRACE;
-            case "[" -> TokenType.LBRACKET;
-            case "]" -> TokenType.RBRACKET;
-            case "," -> TokenType.COMMA;
-            case ";" -> TokenType.SEMICOLON;
-            case ":" -> TokenType.COLON;
-            case "." -> TokenType.DOT;
+        TokenType1 type = switch (value) {
+            case "(" -> TokenType1.LPAREN;
+            case ")" -> TokenType1.RPAREN;
+            case "{" -> TokenType1.LBRACE;
+            case "}" -> TokenType1.RBRACE;
+            case "[" -> TokenType1.LBRACKET;
+            case "]" -> TokenType1.RBRACKET;
+            case "," -> TokenType1.COMMA;
+            case ";" -> TokenType1.SEMICOLON;
+            case ":" -> TokenType1.COLON;
+            case "." -> TokenType1.DOT;
+            case "?" -> TokenType1.QUESTION;
             default -> throw new RuntimeException("Unknown separator: " + value);
         };
         return new Token(type, value, line, column);
@@ -173,7 +174,7 @@ public class GLSLLexer {
         }
     }
     
-    public static void main(String[] args) {
+    /*public static void main(String[] args) {
         String glslCode = 
             "#version 330\n" +
             "uniform mat4 MVP;\n" +
@@ -187,9 +188,9 @@ public class GLSLLexer {
             "   uv = texCoord;\n" +
             "   // This is a comment\n" +
             "   /* Multi-line \n" +
-            "      comment */\n" +
-            "}";
-        
+            "      comment *///\n" +
+            //"}";
+        /*
         GLSLLexer lexer = new GLSLLexer(glslCode);
         List<Token> tokens = lexer.tokenize();
         
@@ -198,5 +199,5 @@ public class GLSLLexer {
         for (Token token : tokens) {
             System.out.println(token);
         }
-    }
+    }*/
 }

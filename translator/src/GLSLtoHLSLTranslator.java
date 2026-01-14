@@ -3,6 +3,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.nio.file.*;
+import java.io.IOException;
+import java.util.List;
 
 public class GLSLtoHLSLTranslator {
     
@@ -86,8 +89,193 @@ public class GLSLtoHLSLTranslator {
         if (varName.contains("color")) return "COLOR";
         return "TEXCOORD0"; // По умолчанию
     }
-    
-    public static void main(String[] args) {
+
+        public static void main(String[] args) {
+
+            System.out.println("=== GLSL → HLSL Translator (Test Mode) ===\n");
+
+            // ---------------------------------------------------------
+            // 1. ВСТРОЕННЫЙ GLSL-КОД ДЛЯ ТЕСТИРОВАНИЯ
+            // ---------------------------------------------------------
+            String glslCode = """
+            #version 330
+
+            uniform mat4 MVP;
+
+            in vec3 position;
+            in vec2 texCoord;
+            out vec2 uv;
+
+            void main() {
+                gl_Position2 = MVP * vec4(position, 1.0);
+                uv = texCoord;
+            }
+            """;
+
+            System.out.println("=== GLSL INPUT ===");
+            System.out.println(glslCode);
+            System.out.println("==================\n");
+
+            // ---------------------------------------------------------
+            // 2. ЛЕКСЕР
+            // ---------------------------------------------------------
+            GLSLLexer lexer = new GLSLLexer(glslCode);
+            List<Token> tokens;
+
+            try {
+                tokens = lexer.tokenize();
+            } catch (Exception e) {
+                System.err.println("Lexer error:");
+                e.printStackTrace();
+                return;
+            }
+
+            System.out.println("Lexical analysis OK. Tokens: " + tokens.size());
+
+            // ---------------------------------------------------------
+            // 3. ПАРСЕР
+            // ---------------------------------------------------------
+            GLSLParser parser = new GLSLParser(tokens);
+            GLSLParser.Program ast;
+
+            try {
+                ast = parser.parseProgram();
+            } catch (Exception e) {
+                System.err.println("Parser crashed:");
+                e.printStackTrace();
+                return;
+            }
+
+            if (!parser.getErrors().isEmpty()) {
+                System.out.println("\n=== PARSER ERRORS ===");
+                parser.getErrors().forEach(System.out::println);
+                System.out.println("Translation aborted.");
+                return;
+            }
+
+            System.out.println("Parsing completed successfully.");
+
+            // ---------------------------------------------------------
+            // 4. ГЕНЕРАЦИЯ HLSL (пока заглушка)
+            // ---------------------------------------------------------
+            HLSLGenerator generator = new HLSLGenerator();
+            String hlsl = generator.generate(ast);
+
+
+            /*try {
+                hlsl = generator.generate(ast);
+            } catch (Exception e) {
+                System.err.println("HLSL generation error:");
+                e.printStackTrace();
+                return;
+            }*/
+
+            // ---------------------------------------------------------
+            // 5. ВЫВОД РЕЗУЛЬТАТА
+            // ---------------------------------------------------------
+            System.out.println("\n=== HLSL OUTPUT ===");
+            System.out.println(hlsl);
+            System.out.println("====================");
+
+            System.out.println("\n=== Translation completed ===");
+        }
+    }
+
+        /*public static void main(String[] args) {
+            System.out.println("=== GLSL → HLSL Translator ===");
+
+            if (args.length == 0) {
+                System.out.println("Usage: java GLSLtoHLSLTranslator <input.glsl>");
+                return;
+            }
+
+            String inputPath = args[0];
+            String glslCode;
+
+            // 1. Чтение GLSL-файла
+            try {
+                glslCode = Files.readString(Path.of(inputPath));
+            } catch (IOException e) {
+                System.err.println("Error: cannot read file " + inputPath);
+                e.printStackTrace();
+                return;
+            }
+
+            System.out.println("Input file: " + inputPath);
+            System.out.println("Reading GLSL source... OK");
+
+            // 2. Лексический анализ
+            GLSLLexer lexer = new GLSLLexer(glslCode);
+            List<Token> tokens;
+
+            try {
+                tokens = lexer.tokenize();
+            } catch (Exception e) {
+                System.err.println("Lexer error:");
+                e.printStackTrace();
+                return;
+            }
+
+            System.out.println("Lexical analysis completed. Tokens: " + tokens.size());
+
+            // 3. Синтаксический анализ
+            GLSLParser parser = new GLSLParser(tokens);
+            GLSLParser.Program ast;
+
+            try {
+                ast = parser.parseProgram();
+            } catch (Exception e) {
+                System.err.println("Parser crashed:");
+                e.printStackTrace();
+                return;
+            }
+
+            // 4. Проверка ошибок парсинга
+            List<String> errors = parser.getErrors();
+            if (!errors.isEmpty()) {
+                System.out.println("\n=== PARSER ERRORS ===");
+                for (String err : errors) {
+                    System.out.println(err);
+                }
+                System.out.println("Translation aborted due to syntax errors.");
+                return;
+            }
+
+            System.out.println("Parsing completed successfully.");
+
+            // 5. Генерация HLSL (заглушка — ты допишешь позже)
+            HLSLGenerator generator = new HLSLGenerator();
+            String hlslCode;
+
+            try {
+                hlslCode = generator.generate(ast);
+            } catch (Exception e) {
+                System.err.println("HLSL generation error:");
+                e.printStackTrace();
+                return;
+            }
+
+            // 6. Вывод результата
+            System.out.println("\n=== HLSL OUTPUT ===");
+            System.out.println(hlslCode);
+
+            // 7. Сохранение результата в файл
+            String outputPath = inputPath.replace(".glsl", ".hlsl");
+
+            try {
+                Files.writeString(Path.of(outputPath), hlslCode);
+                System.out.println("\nHLSL saved to: " + outputPath);
+            } catch (IOException e) {
+                System.err.println("Cannot save output file:");
+                e.printStackTrace();
+            }
+
+            System.out.println("\n=== Translation completed ===");
+        }
+    }*/
+
+
+    /*public static void main(String[] args) {
         String glslVertexShader = 
             "attribute vec3 position;\n" +
             "attribute vec2 texcoord;\n" +
@@ -107,5 +295,4 @@ public class GLSLtoHLSLTranslator {
         
         System.out.println("\n=== Translated HLSL ===");
         System.out.println(translate(glslVertexShader));
-    }
-}
+    }*/
