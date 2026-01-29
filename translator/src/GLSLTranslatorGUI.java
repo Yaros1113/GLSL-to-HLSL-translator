@@ -44,14 +44,14 @@ public class GLSLTranslatorGUI extends JFrame {
 
         // Панель для кнопок
         JPanel buttonPanel = new JPanel(new FlowLayout());
-        loadButton = new JButton("Загрузить текст из файла");
-        translateButton = new JButton("Транслировать");
+        loadButton = new JButton("Load text from file");
+        translateButton = new JButton("Translate");
         buttonPanel.add(loadButton);
         buttonPanel.add(translateButton);
 
         // Панель для логов
         JPanel logPanel = new JPanel(new BorderLayout());
-        logPanel.setBorder(BorderFactory.createTitledBorder("Логи / Ошибки"));
+        logPanel.setBorder(BorderFactory.createTitledBorder("Logs / Errors"));
         logArea = new JTextArea(5, 40);
         logArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
         logArea.setEditable(false);
@@ -83,9 +83,9 @@ public class GLSLTranslatorGUI extends JFrame {
                 try {
                     String content = new String(Files.readAllBytes(selectedFile.toPath()));
                     glslInputArea.setText(content);
-                    logArea.append("Файл загружен: " + selectedFile.getName() + "\n");
+                    logArea.append("File loaded: " + selectedFile.getName() + "\n");
                 } catch (IOException ex) {
-                    logArea.append("Ошибка загрузки файла: " + ex.getMessage() + "\n");
+                    logArea.append("Error loading file: " + ex.getMessage() + "\n");
                 }
             }
         }
@@ -97,7 +97,7 @@ public class GLSLTranslatorGUI extends JFrame {
         public void actionPerformed(ActionEvent e) {
             String glslCode = glslInputArea.getText();
             if (glslCode.trim().isEmpty()) {
-                logArea.append("Ошибка: Введите GLSL код или загрузите файл.\n");
+                logArea.append("Error: Input GLSL code or load a file.\n");
                 return;
             }
 
@@ -105,28 +105,28 @@ public class GLSLTranslatorGUI extends JFrame {
                 // Лексер
                 GLSLLexer lexer = new GLSLLexer(glslCode);
                 List<Token> tokens = lexer.tokenize();
-                logArea.append("Лексический анализ завершен. Токенов: " + tokens.size() + "\n");
+                logArea.append("Lexical analysis finished. Tokens: " + tokens.size() + "\n");
 
                 // Парсер
                 GLSLParser parser = new GLSLParser(tokens);
                 GLSLParser.Program ast = parser.parseProgram();
                 if (!parser.getErrors().isEmpty()) {
-                    logArea.append("Ошибки парсера:\n");
+                    logArea.append("Parser errors:\n");
                     for (String error : parser.getErrors()) {
                         logArea.append("  " + error + "\n");
                     }
                     return;
                 }
-                logArea.append("Парсинг завершен успешно.\n");
+                logArea.append("Parsing completed successfully.\n");
 
                 // Генератор HLSL
                 HLSLGenerator generator = new HLSLGenerator();
                 String hlslCode = generator.generate(ast);
                 hlslOutputArea.setText(hlslCode);
-                logArea.append("Генерация HLSL завершена.\n");
+                logArea.append("HLSL generation completed.\n");
 
             } catch (Exception ex) {
-                logArea.append("Ошибка трансляции: " + ex.getMessage() + "\n");
+                logArea.append("Translation error: " + ex.getMessage() + "\n");
                 ex.printStackTrace();
             }
         }
