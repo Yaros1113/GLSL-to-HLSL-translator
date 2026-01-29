@@ -12,7 +12,7 @@ public class GLSLLexer {
         // Компилируем все шаблоны в один большой RegEx
         String patterns = 
             "(?<PREPROCESSOR>#.*)" + "|" +
-            "(?<KEYWORD>\\b(void|float|int|bool|sampler2D|samplerCube|" + //vec2|vec3|vec4|mat2|mat3|mat4|
+            "(?<KEYWORD>\\b(void|float|int|bool|sampler2D|samplerCube|vec2|vec3|vec4|mat2|mat3|mat4|" + //
             "if|else|for|while|do|return|break|continue|uniform|attribute|varying|in|out|inout|struct)\\b)" + "|" +
             "(?<BOOL>\\b(true|false)\\b)" + "|" +
             "(?<FLOAT>\\d+\\.\\d*([eE][-+]?\\d+)?|\\d*\\.\\d+([eE][-+]?\\d+)?|\\d+[eE][-+]?\\d+)" + "|" +
@@ -173,31 +173,5 @@ public class GLSLLexer {
             }
         }
     }
-    
-    /*public static void main(String[] args) {
-        String glslCode = 
-            "#version 330\n" +
-            "uniform mat4 MVP;\n" +
-            "\n" +
-            "in vec3 position;\n" +
-            "in vec2 texCoord;\n" +
-            "out vec2 uv;\n" +
-            "\n" +
-            "void main() {\n" +
-            "   gl_Position = MVP * vec4(position, 1.0);\n" +
-            "   uv = texCoord;\n" +
-            "   // This is a comment\n" +
-            "   /* Multi-line \n" +
-            "      comment *///\n" +
-            //"}";
-        /*
-        GLSLLexer lexer = new GLSLLexer(glslCode);
-        List<Token> tokens = lexer.tokenize();
-        
-        System.out.println("GLSL Lexer Output:");
-        System.out.println("=".repeat(60));
-        for (Token token : tokens) {
-            System.out.println(token);
-        }
-    }*/
+
 }

@@ -93,7 +93,7 @@ public class GLSLParser {
     public static class Parameter extends ASTNode {
         public String type;
         public String name;
-
+        public String qualifier; // "in", "out", "inout" или null
         @Override
         public <R> R accept(ASTVisitor<R> visitor) {
             return visitor.visit(this);
@@ -333,21 +333,55 @@ public class GLSLParser {
     }
 
     private boolean checkDeclarationStart() {
-        return check(TokenType1.KEYWORD_UNIFORM) ||
-                check(TokenType1.KEYWORD_ATTRIBUTE) ||
-                check(TokenType1.KEYWORD_VARYING) ||
-                check(TokenType1.KEYWORD_IN) ||
-                check(TokenType1.KEYWORD_OUT) ||
-                checkTypeToken() ||
-                check(TokenType1.KEYWORD_VOID);
+        int save = current;
+        boolean result = false;
 
+        try {
+            // Пропускаем модификаторы
+            while (match(
+                    TokenType1.KEYWORD_UNIFORM,
+                    TokenType1.KEYWORD_ATTRIBUTE,
+                    TokenType1.KEYWORD_VARYING,
+                    TokenType1.KEYWORD_IN,
+                    TokenType1.KEYWORD_OUT
+            )) {
+                // Просто пропускаем
+            }
+
+            // Проверяем тип или void
+            if (check(TokenType1.KEYWORD_VOID) || checkTypeToken()) {
+                result = true;
+            }
+        } finally {
+            current = save;
+        }
+
+        return result;
     }
 
     private boolean checkTypeToken() {
-        if (peek().type != TokenType1.IDENTIFIER)
-            return false;
+        Token token = peek();
 
-        return isBuiltinType(peek().value);
+        // Проверяем ключевые слова типов
+        switch (token.type) {
+            case KEYWORD_FLOAT:
+            case KEYWORD_INT:
+            case KEYWORD_BOOL:
+            case KEYWORD_VEC2:
+            case KEYWORD_VEC3:
+            case KEYWORD_VEC4:
+            case KEYWORD_MAT2:
+            case KEYWORD_MAT3:
+            case KEYWORD_MAT4:
+            case KEYWORD_SAMPLER2D:
+            case KEYWORD_SAMPLERCUBE:
+                return true;
+            case IDENTIFIER:
+                // Проверяем пользовательские типы (структуры)
+                return isBuiltinType(token.value);
+            default:
+                return false;
+        }
     }
 
     private boolean isBuiltinType(String name) {
@@ -364,38 +398,80 @@ public class GLSLParser {
                 name.equals("samplerCube");
     }
 
-    /*private boolean checkTypeToken() {
-        TokenType1 type = peek().type;
-        return type.name().startsWith("KEYWORD_") &&
-               (type.name().contains("FLOAT") ||
-                type.name().contains("INT") ||
-                type.name().contains("BOOL") ||
-                type.name().contains("VEC") ||
-                type.name().contains("MAT") ||
-                type.name().contains("SAMPLER"));
-    }*/
 
     private boolean checkFunctionDeclaration() {
         int save = current;
 
-        // return type
-        if (match(TokenType1.KEYWORD_VOID) || checkTypeToken()) {
-            advance(); // имя функции
-            boolean isFunc = check(TokenType1.LPAREN);
-            current = save;
-            return isFunc;
+        // Проверяем тип возврата (без изменения current)
+        if (!(check(TokenType1.KEYWORD_VOID) || checkTypeToken())) {
+            return false;
         }
 
+        // Пропускаем тип возврата
+        advance(); // пропускаем тип (float, void и т.д.)
+
+        // Проверяем наличие идентификатора
+        if (!check(TokenType1.IDENTIFIER)) {
+            current = save;
+            return false;
+        }
+
+        advance(); // пропускаем имя функции
+
+        // Проверяем наличие '('
+        if (!check(TokenType1.LPAREN)) {
+            current = save;
+            return false;
+        }
+
+        // Восстанавливаем позицию
         current = save;
-        return false;
+        return true;
     }
 
 
     private ASTNode parseDeclaration() {
-        if (checkFunctionDeclaration()) {
-            return parseFunctionDeclaration();
-        } else {
-            return parseVariableDeclaration(false);
+        int save = current;
+
+        try {
+            // Пробуем определить, что это: функция или переменная
+            // Читаем до первой скобки или точки с запятой
+
+            // Пропускаем модификаторы
+            while (match(
+                    TokenType1.KEYWORD_UNIFORM,
+                    TokenType1.KEYWORD_ATTRIBUTE,
+                    TokenType1.KEYWORD_VARYING
+            )) {
+                // Просто пропускаем
+            }
+
+            // Читаем тип
+            if (!checkTypeToken() && !check(TokenType1.KEYWORD_VOID)) {
+                throw error(peek(), "Expected type for declaration");
+            }
+            advance(); // тип
+
+            // Читаем имя
+            if (!check(TokenType1.IDENTIFIER)) {
+                throw error(peek(), "Expected identifier");
+            }
+            String name = advance().value;
+
+            // Определяем, что дальше
+            if (check(TokenType1.LPAREN)) {
+                // Это функция
+                current = save;
+                return parseFunctionDeclaration();
+            } else {
+                // Это переменная
+                current = save;
+                return parseVariableDeclaration(false);
+            }
+
+        } catch (ParseError e) {
+            current = save;
+            throw e;
         }
     }
 
@@ -420,6 +496,15 @@ public class GLSLParser {
     private FunctionDeclaration parseFunctionDeclaration() {
         FunctionDeclaration func = new FunctionDeclaration();
 
+        // Пропускаем модификаторы
+        while (match(
+                TokenType1.KEYWORD_UNIFORM,
+                TokenType1.KEYWORD_ATTRIBUTE,
+                TokenType1.KEYWORD_VARYING
+        )) {
+            // Пропускаем
+        }
+
         // Тип возврата
         if (match(TokenType1.KEYWORD_VOID)) {
             func.returnType = "void";
@@ -427,37 +512,75 @@ public class GLSLParser {
             func.returnType = advance().value;
         } else {
             error("Expected return type for function");
+            func.returnType = "float"; // Значение по умолчанию
         }
 
         // Имя функции
-        func.name = expect(TokenType1.IDENTIFIER, "Expected function name").value;
+        if (check(TokenType1.IDENTIFIER)) {
+            func.name = advance().value;
+        } else {
+            error("Expected function name");
+            func.name = "unknown";
+        }
 
         // Параметры
-        expect(TokenType1.LPAREN, "Expected '(' after function name");
-        if (!check(TokenType1.RPAREN)) {
-            do {
-                func.parameters.add(parseParameter());
-            } while (match(TokenType1.COMMA));
+        if (match(TokenType1.LPAREN)) {
+            if (!check(TokenType1.RPAREN)) {
+                do {
+                    try {
+                        func.parameters.add(parseParameter());
+                    } catch (ParseError e) {
+                        // Пропускаем некорректный параметр
+                        error("Error parsing parameter: " + e.getMessage());
+                        synchronize();
+                        if (check(TokenType1.COMMA) || check(TokenType1.RPAREN)) {
+                            continue;
+                        }
+                    }
+                } while (match(TokenType1.COMMA));
+            }
+            expect(TokenType1.RPAREN, "Expected ')' after parameters");
+        } else {
+            error("Expected '(' after function name");
         }
-        expect(TokenType1.RPAREN, "Expected ')' after parameters");
 
         // Тело функции
-        func.body = parseBlockStatement();
+        try {
+            func.body = parseBlockStatement();
+        } catch (ParseError e) {
+            error("Error parsing function body: " + e.getMessage());
+            func.body = new BlockStatement(); // Пустое тело
+        }
+
         return func;
     }
 
     private Parameter parseParameter() {
         Parameter param = new Parameter();
 
+        // Квалификаторы параметра
+        if (match(TokenType1.KEYWORD_IN, TokenType1.KEYWORD_OUT, TokenType1.KEYWORD_INOUT)) {
+            param.qualifier = previous().value;
+        }
+
+        // Тип параметра
         if (checkTypeToken()) {
             param.type = advance().value;
         } else {
-            error("Expected parameter type");
+            throw error(peek(), "Expected parameter type");
         }
 
-        param.name = expect(TokenType1.IDENTIFIER, "Expected parameter name").value;
+        // Имя параметра
+        if (check(TokenType1.IDENTIFIER)) {
+            param.name = advance().value;
+        } else {
+            // Параметр может быть без имени
+            param.name = null;
+        }
+
         return param;
     }
+
 
     private VariableDeclaration parseVariableDeclaration(boolean inStruct) {
         VariableDeclaration decl = new VariableDeclaration();
@@ -477,7 +600,7 @@ public class GLSLParser {
         if (checkTypeToken()) {
             decl.type = advance().value;
         } else {
-            error("Expected variable type");
+            throw error(peek(), "Expected variable type");
         }
 
         // Имя переменной
@@ -490,7 +613,12 @@ public class GLSLParser {
 
         // Инициализатор
         if (match(TokenType1.OP_ASSIGN)) {
-            decl.initializer = parseExpression();
+            try {
+                decl.initializer = parseExpression();
+            } catch (ParseError e) {
+                // Если не удалось разобрать выражение, записываем ошибку
+                error("Error parsing initializer: " + e.getMessage());
+            }
         }
 
         if (!inStruct) {
@@ -513,6 +641,13 @@ public class GLSLParser {
     }
 
     private ASTNode parseStatement() {
+        // Пропускаем препроцессорные директивы в начале
+        if (match(TokenType1.PREPROCESSOR_DIRECTIVE)) {
+            // Создаем узел для препроцессорной директивы или просто пропускаем
+            while (match(TokenType1.PREPROCESSOR_DIRECTIVE)) {
+                // Пропускаем все подряд идущие директивы
+            }
+        }
         if (match(TokenType1.KEYWORD_RETURN)) return parseReturnStatement();
         if (match(TokenType1.KEYWORD_IF))     return parseIfStatement();
         if (match(TokenType1.KEYWORD_FOR))    return parseForStatement();
@@ -702,49 +837,8 @@ public class GLSLParser {
         return parsePrimary();
     }
 
-    /*private ASTNode parsePrimary() {
-        if (match(TokenType1.BOOL_LITERAL, TokenType1.INT_LITERAL, TokenType1.FLOAT_LITERAL)) {
-            return new Literal(previous().value);
-        }
-
-        if (match(TokenType1.STRING_LITERAL)) {
-            return new Literal(previous().value.substring(1, previous().value.length() - 1));
-        }
-
-        if (match(
-                TokenType1.KEYWORD_VEC2, TokenType1.KEYWORD_VEC3, TokenType1.KEYWORD_VEC4,
-                TokenType1.KEYWORD_MAT2, TokenType1.KEYWORD_MAT3, TokenType1.KEYWORD_MAT4
-        )) {
-            String name = previous().value;
-
-            if (match(TokenType1.LPAREN)) {
-                CallExpression call = new CallExpression();
-                call.callee = new Identifier(name);
-
-                if (!check(TokenType1.RPAREN)) {
-                    do {
-                        call.arguments.add(parseExpression());
-                    } while (match(TokenType1.COMMA));
-                }
-
-                expect(TokenType1.RPAREN, "Expected ')' after constructor args");
-                return call;
-            }
-
-            return new Identifier(name);
-        }
-
-        if (match(TokenType1.LPAREN)) {
-            ASTNode expr = parseExpression();
-            expect(TokenType1.RPAREN, "Expected ')' after expression");
-            return expr;
-        }
-
-        throw error(peek(), "Expected expression");
-    }*/
 
     private ASTNode parsePrimary() {
-
         // Литералы
         if (match(TokenType1.BOOL_LITERAL, TokenType1.INT_LITERAL, TokenType1.FLOAT_LITERAL)) {
             return new Literal(previous().value);
@@ -754,11 +848,40 @@ public class GLSLParser {
             return new Literal(previous().value.substring(1, previous().value.length() - 1));
         }
 
-        // Идентификатор (включая vec4, mat4 и т.п.)
+        // Сохраняем позицию для отката
+        int start = current;
+
+        // Попробуем распарсить как конструктор типа (vec2, vec3, vec4 и т.д.)
+        if (checkTypeToken()) {
+            String typeName = peek().value;
+
+            // Пропускаем тип
+            advance();
+
+            // Проверяем, есть ли скобки для конструктора
+            if (match(TokenType1.LPAREN)) {
+                CallExpression call = new CallExpression();
+                call.callee = new Identifier(typeName);
+
+                if (!check(TokenType1.RPAREN)) {
+                    do {
+                        call.arguments.add(parseExpression());
+                    } while (match(TokenType1.COMMA));
+                }
+
+                expect(TokenType1.RPAREN, "Expected ')' after constructor arguments");
+                return call;
+            } else {
+                // Это не конструктор - откатываемся
+                current = start;
+            }
+        }
+
+        // Идентификатор
         if (match(TokenType1.IDENTIFIER)) {
             String name = previous().value;
 
-            // Вызов функции или конструктора
+            // Вызов функции
             if (match(TokenType1.LPAREN)) {
                 CallExpression call = new CallExpression();
                 call.callee = new Identifier(name);
@@ -794,87 +917,6 @@ public class GLSLParser {
         throw error(peek(), "Expected expression");
     }
 
-
-    /*private ASTNode parsePrimary() {
-        // GLSL constructors: vec2(...), vec3(...), mat4(...)
-        if (match(TokenType1.IDENTIFIER)) {
-            String name = previous().value;
-
-            // constructor call
-            if (match(TokenType1.LPAREN)) {
-                CallExpression call = new CallExpression();
-                //GLSLParser.CallExpression call = new GLSLParser.CallExpression();
-                call.callee = new GLSLParser.Identifier(name);
-
-                if (!check(TokenType1.RPAREN)) {
-                    do {
-                        call.arguments.add(parseExpression());
-                    } while (match(TokenType1.COMMA));
-                }
-
-                expect(TokenType1.RPAREN, "Expected ')' after constructor arguments");
-                return call;
-            }
-
-            return new GLSLParser.Identifier(name);
-        }
-
-
-        if (match(TokenType1.LPAREN)) {
-            ASTNode expr = parseExpression();
-            expect(TokenType1.RPAREN, "Expected ')' after expression");
-            return expr;
-        }
-
-        throw error(peek(), "Expected expression");
-    }*/
-
-   /* private ASTNode parsePrimary() {
-        if (match(TokenType1.BOOL_LITERAL, TokenType1.INT_LITERAL, TokenType1.FLOAT_LITERAL)) {
-            return new Literal(previous().value);
-        }
-
-        if (match(TokenType1.STRING_LITERAL)) {
-            return new Literal(previous().value.substring(1, previous().value.length() - 1));
-        }
-
-        if (match(TokenType1.IDENTIFIER)) {
-            String name = previous().value;
-
-                // Вызов функции
-            if (match(TokenType1.LPAREN)) {
-                CallExpression call = new CallExpression();
-                call.callee = new Identifier(name);
-
-                if (!check(TokenType1.RPAREN)) {
-                    do {
-                        call.arguments.add(parseExpression());
-                    } while (match(TokenType1.COMMA));
-                }
-
-                expect(TokenType1.RPAREN, "Expected ')' after arguments");
-                return call;
-            }
-
-            // Обращение к члену структуры (a.b)
-            if (match(TokenType1.DOT)) {
-                MemberExpression member = new MemberExpression();
-                member.object = new Identifier(name);
-                member.property = parsePrimary();
-                return member;
-            }
-
-            return new Identifier(name);
-        }
-
-        if (match(TokenType1.LPAREN)) {
-            ASTNode expr = parseExpression();
-            expect(TokenType1.RPAREN, "Expected ')' after expression");
-            return expr;
-        }
-
-        throw error(peek(), "Expected expression");
-    }*/
 
     // Вспомогательные методы ==================================================
 
@@ -929,20 +971,30 @@ public class GLSLParser {
 
     private void synchronize() {
         advance();
+
         while (!isAtEnd()) {
+            // Если нашли точку с запятой, возвращаемся
             if (previous().type == TokenType1.SEMICOLON) return;
-            
+
+            // Если нашли начало нового объявления, возвращаемся
             switch (peek().type) {
                 case KEYWORD_STRUCT:
                 case KEYWORD_UNIFORM:
+                case KEYWORD_ATTRIBUTE:
+                case KEYWORD_VARYING:
+                case KEYWORD_IN:
+                case KEYWORD_OUT:
                 case KEYWORD_VOID:
                 case KEYWORD_FLOAT:
-                case KEYWORD_SAMPLER2D:
+                case KEYWORD_INT:
+                case KEYWORD_BOOL:
+                case KEYWORD_VEC2:
+                case KEYWORD_VEC3:
+                case KEYWORD_VEC4:
                     return;
-                default://???
+                default:
+                    advance();
             }
-            
-            advance();
         }
     }
     
@@ -952,47 +1004,4 @@ public class GLSLParser {
         }
     }
 
-    // Пример использования
-    /*public static void main(String[] args) {
-        String glslCode = 
-            "struct Light {\n" +
-            "   vec3 position;\n" +
-            "   vec4 color;\n" +
-            "};\n\n" +
-            "uniform Light lights[2];\n" +
-            "varying vec2 texCoord;\n\n" +
-            "vec4 calculateLight(vec3 position, vec3 normal) {\n" +
-            "   vec4 result = vec4(0.0);\n" +
-            "   for (int i = 0; i < 2; i++) {\n" +
-            "       vec3 lightDir = normalize(lights[i].position - position);\n" +
-            "       float diff = max(dot(normal, lightDir), 0.0);\n" +
-            "       result += lights[i].color * diff;\n" +
-            "   }\n" +
-            "   return result;\n" +
-            "}\n\n" +
-            "void main() {\n" +
-            "   vec3 normal = normalize(vNormal);\n" +
-            "   vec4 lightColor = calculateLight(vPosition, normal);\n" +
-            "   gl_FragColor = texture2D(uTexture, texCoord) * lightColor;\n" +
-            "}";
-        
-        // Лексический анализ
-        GLSLLexer lexer = new GLSLLexer(glslCode);
-        List<Token> tokens = lexer.tokenize();
-        
-        // Синтаксический анализ
-        GLSLParser parser = new GLSLParser(tokens);
-        Program program = parser.parseProgram();
-        
-        // Вывод ошибок
-        if (!parser.getErrors().isEmpty()) {
-            System.out.println("Errors during parsing:");
-            for (String error : parser.getErrors()) {
-                System.out.println(error);
-            }
-        } else {
-            System.out.println("Parsing completed successfully");
-            // Здесь можно добавить обход AST или трансляцию в HLSL
-        }
-    }*/
 }

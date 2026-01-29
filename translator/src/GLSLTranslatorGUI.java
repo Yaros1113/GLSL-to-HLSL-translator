@@ -52,7 +52,7 @@ public class GLSLTranslatorGUI extends JFrame {
         // Панель для логов
         JPanel logPanel = new JPanel(new BorderLayout());
         logPanel.setBorder(BorderFactory.createTitledBorder("Logs / Errors"));
-        logArea = new JTextArea(5, 40);
+        logArea = new JTextArea(10, 40);
         logArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
         logArea.setEditable(false);
         JScrollPane logScroll = new JScrollPane(logArea);
