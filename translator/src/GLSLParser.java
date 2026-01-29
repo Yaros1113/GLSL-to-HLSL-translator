@@ -378,24 +378,17 @@ public class GLSLParser {
                 return true;
             case IDENTIFIER:
                 // Проверяем пользовательские типы (структуры)
-                return isBuiltinType(token.value);
+                return userTypes.contains(token.value);
             default:
                 return false;
         }
     }
 
-    private boolean isBuiltinType(String name) {
-        return name.equals("float") ||
-                name.equals("int")   ||
-                name.equals("bool")  ||
-                name.equals("vec2")  ||
-                name.equals("vec3")  ||
-                name.equals("vec4")  ||
-                name.equals("mat2")  ||
-                name.equals("mat3")  ||
-                name.equals("mat4")  ||
-                name.equals("sampler2D") ||
-                name.equals("samplerCube");
+    // Добавить поле для хранения пользовательских типов
+    private final Set<String> userTypes = new HashSet<>();
+
+    private boolean isUserType(String name) {
+        return userTypes.contains(name);
     }
 
 
@@ -478,10 +471,14 @@ public class GLSLParser {
     private StructDeclaration parseStructDeclaration() {
         StructDeclaration struct = new StructDeclaration();
         struct.name = expect(TokenType1.IDENTIFIER, "Expected struct name").value;
+        System.out.println("Parsing struct: " + struct.name); // Отладка
+        userTypes.add(struct.name);
         expect(TokenType1.LBRACE, "Expected '{' after struct name");
 
         while (!match(TokenType1.RBRACE) && !isAtEnd()) {
+            System.out.println("Current token in struct field: " + peek().type + " = " + peek().value); // Отладка
             if (checkTypeToken()) {
+                System.out.println("Type token recognized: " + peek().value); // Отладка
                 struct.fields.add(parseVariableDeclaration(true));
             } else {
                 error("Expected type in struct field");
@@ -490,6 +487,7 @@ public class GLSLParser {
         }
 
         expect(TokenType1.SEMICOLON, "Expected ';' after struct declaration");
+        System.out.println("Struct parsed successfully: " + struct.name + " with " + struct.fields.size() + " fields"); // Отладка
         return struct;
     }
 
@@ -724,8 +722,32 @@ public class GLSLParser {
 
     private ASTNode parseExpressionStatement() {
         ASTNode expr = parseExpression();
+
+        // Проверяем, является ли это выражение допустимым statement
+        if (!isValidExpressionStatement(expr)) {
+            error("Invalid expression statement");
+        }
+
         expect(TokenType1.SEMICOLON, "Expected ';' after expression");
-        return expr;
+        return new ExpressionStatement(expr);
+    }
+
+    private boolean isValidExpressionStatement(ASTNode expr) {
+        // Допустимые expression statements:
+        // 1. Вызов функции
+        // 2. Присваивание
+        // 3. Инкремент/декремент
+        if (expr instanceof CallExpression) return true;
+        if (expr instanceof BinaryExpression) {
+            String op = ((BinaryExpression) expr).operator;
+            return op.equals("=") || op.equals("+=") || op.equals("-=") ||
+                    op.equals("*=") || op.equals("/=") || op.equals("++") || op.equals("--");
+        }
+        if (expr instanceof UnaryExpression) {
+            String op = ((UnaryExpression) expr).operator;
+            return op.equals("++") || op.equals("--");
+        }
+        return false;
     }
 
 
@@ -746,10 +768,23 @@ public class GLSLParser {
         )) {
             Token operator = previous();
             ASTNode value = parseAssignment();
+
+            // Проверяем, что левая часть присваивания - это допустимая l-value
+            if (!isValidLValue(expr)) {
+                error("Invalid left-hand side in assignment");
+            }
+
             return new BinaryExpression(operator.value, expr, value);
         }
 
         return expr;
+    }
+
+    private boolean isValidLValue(ASTNode node) {
+        // Допустимые l-value:
+        // 1. Простой идентификатор (variable)
+        // 2. MemberExpression (struct.field)
+        return node instanceof Identifier || node instanceof MemberExpression;
     }
 
     private ASTNode parseTernary() {
@@ -851,7 +886,7 @@ public class GLSLParser {
         // Сохраняем позицию для отката
         int start = current;
 
-        // Попробуем распарсить как конструктор типа (vec2, vec3, vec4 и т.д.)
+        // Попробуем распарсить как конструктор типа (vec3, vec4 и т.д.)
         if (checkTypeToken()) {
             String typeName = peek().value;
 
@@ -896,15 +931,22 @@ public class GLSLParser {
                 return call;
             }
 
-            // Обращение к члену: a.b
-            if (match(TokenType1.DOT)) {
-                MemberExpression member = new MemberExpression();
-                member.object = new Identifier(name);
-                member.property = parsePrimary();
-                return member;
+            // Создаем начальный идентификатор
+            ASTNode expr = new Identifier(name);
+
+            // Обработка цепочки обращений через точку: a.b.c
+            while (match(TokenType1.DOT)) {
+                if (match(TokenType1.IDENTIFIER)) {
+                    MemberExpression member = new MemberExpression();
+                    member.object = expr;
+                    member.property = new Identifier(previous().value);
+                    expr = member;
+                } else {
+                    throw error(peek(), "Expected identifier after '.'");
+                }
             }
 
-            return new Identifier(name);
+            return expr;
         }
 
         // Скобки

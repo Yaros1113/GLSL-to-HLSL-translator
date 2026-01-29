@@ -119,6 +119,20 @@ public class GLSLTranslatorGUI extends JFrame {
                 }
                 logArea.append("Parsing completed successfully.\n");
 
+
+                // Семантический анализ
+                SemanticAnalyzer analyzer = new SemanticAnalyzer();
+                List<String> semanticErrors = analyzer.analyze(ast);
+                if (!semanticErrors.isEmpty()) {
+                    logArea.append("Semantic errors:\n");
+                    for (String error : semanticErrors) {
+                        logArea.append("  " + error + "\n");
+                    }
+                    return;
+                }
+                logArea.append("Semantic analysis completed successfully.\n");
+
+
                 // Генератор HLSL
                 HLSLGenerator generator = new HLSLGenerator();
                 String hlslCode = generator.generate(ast);

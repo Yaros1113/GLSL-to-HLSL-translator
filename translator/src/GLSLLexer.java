@@ -6,115 +6,127 @@ public class GLSLLexer {
     private int pos;
     private final List<Token> tokens = new ArrayList<>();
     private static final Pattern TOKEN_PATTERNS;
-    
+
     // Статическая инициализация регулярных выражений
     static {
         // Компилируем все шаблоны в один большой RegEx
-        String patterns = 
-            "(?<PREPROCESSOR>#.*)" + "|" +
-            "(?<KEYWORD>\\b(void|float|int|bool|sampler2D|samplerCube|vec2|vec3|vec4|mat2|mat3|mat4|" + //
-            "if|else|for|while|do|return|break|continue|uniform|attribute|varying|in|out|inout|struct)\\b)" + "|" +
-            "(?<BOOL>\\b(true|false)\\b)" + "|" +
-            "(?<FLOAT>\\d+\\.\\d*([eE][-+]?\\d+)?|\\d*\\.\\d+([eE][-+]?\\d+)?|\\d+[eE][-+]?\\d+)" + "|" +
-            "(?<INT>\\b\\d+\\b)" + "|" +
-            "(?<STRING>\"([^\"\\\\]|\\\\.)*\")" + "|" +
-            "(?<OP>\\+\\+|--|\\+=|-=|\\*=|/=|==|!=|<=|>=|&&|\\|\\||[+\\-*/=<>!&|])" + "|" +
-            "(?<SEPARATOR>[\\(\\)\\{\\}\\[\\],;:\\.?])" + "|" +
-            "(?<IDENTIFIER>\\b[a-zA-Z_]\\w*\\b)" + "|" +
-            "(?<COMMENT>//.*|/\\*[\\s\\S]*?\\*/)" + "|" +
-            "(?<WHITESPACE>\\s+)" + "|" +
-            "(?<UNKNOWN>.)";
-        
+        // ВАЖНО: порядок важен! Более специфичные шаблоны должны идти первыми
+        String patterns =
+                "(?<COMMENT>//.*|/\\*[\\s\\S]*?\\*/)" + "|" +  // Комментарии ДОЛЖНЫ быть первыми
+                        "(?<PREPROCESSOR>#.*)" + "|" +
+                        "(?<KEYWORD>\\b(void|float|int|bool|sampler2D|samplerCube|vec2|vec3|vec4|mat2|mat3|mat4|" +
+                        "if|else|for|while|do|return|break|continue|uniform|attribute|varying|in|out|inout|struct)\\b)" + "|" +
+                        "(?<BOOL>\\b(true|false)\\b)" + "|" +
+                        "(?<FLOAT>\\d+\\.\\d*([eE][-+]?\\d+)?|\\d*\\.\\d+([eE][-+]?\\d+)?|\\d+[eE][-+]?\\d+)" + "|" +
+                        "(?<INT>\\b\\d+\\b)" + "|" +
+                        "(?<STRING>\"([^\"\\\\]|\\\\.)*\")" + "|" +
+                        "(?<OP>\\+\\+|--|\\+=|-=|\\*=|/=|==|!=|<=|>=|&&|\\|\\||[+\\-*/=<>!&|])" + "|" +
+                        "(?<SEPARATOR>[\\(\\)\\{\\}\\[\\],;:\\.?])" + "|" +
+                        "(?<IDENTIFIER>\\b[a-zA-Z_]\\w*\\b)" + "|" +
+                        "(?<WHITESPACE>\\s+)" + "|" +
+                        "(?<UNKNOWN>.)";
+
         TOKEN_PATTERNS = Pattern.compile(patterns);
     }
-    
+
     public GLSLLexer(String input) {
         this.input = input;
         this.pos = 0;
     }
-    
+
     public List<Token> tokenize() {
         int line = 1;
         int lineStart = 0;
-        
+
+        // Пропускаем BOM (Byte Order Mark) если есть
+        if (!input.isEmpty() && input.charAt(0) == '\uFEFF') {
+            pos = 1;
+        }
+
         Matcher matcher = TOKEN_PATTERNS.matcher(input);
         while (pos < input.length()) {
             if (!matcher.find(pos)) break;
-            
+
             // Обновляем информацию о позиции
             int start = matcher.start();
             int end = matcher.end();
             pos = end;
-            
+
             // Вычисляем позицию в строке
             int column = start - lineStart + 1;
 
-            // Обновляем счетчики строк
+            // Обновляем счетчики строк (сначала обновляем для найденного токена)
             String tokenValue = matcher.group();
-            for (char c : tokenValue.toCharArray()) {
-                if (c == '\n') {
-                    line++;
-                    lineStart = start + tokenValue.indexOf('\n') + 1;
-                }
-            }
-            
+
             // Обработка найденных групп
-            if (matcher.group("PREPROCESSOR") != null) {
+            if (matcher.group("COMMENT") != null) {
+                // Обновляем информацию о строках для комментариев
+                updateLineInfo(tokenValue, line, lineStart);
+                continue; // Пропускаем комментарии
+            }
+            else if (matcher.group("PREPROCESSOR") != null) {
                 tokens.add(new Token(TokenType1.PREPROCESSOR_DIRECTIVE,
-                                    matcher.group(), line, column));
+                        tokenValue, line, column));
             }
             else if (matcher.group("KEYWORD") != null) {
-                tokens.add(createKeywordToken(matcher.group(), line, column));
+                tokens.add(createKeywordToken(tokenValue, line, column));
             }
             else if (matcher.group("BOOL") != null) {
                 tokens.add(new Token(TokenType1.BOOL_LITERAL,
-                                    matcher.group(), line, column));
+                        tokenValue, line, column));
             }
             else if (matcher.group("FLOAT") != null) {
                 tokens.add(new Token(TokenType1.FLOAT_LITERAL,
-                                    matcher.group(), line, column));
+                        tokenValue, line, column));
             }
             else if (matcher.group("INT") != null) {
                 tokens.add(new Token(TokenType1.INT_LITERAL,
-                                    matcher.group(), line, column));
+                        tokenValue, line, column));
             }
             else if (matcher.group("STRING") != null) {
                 tokens.add(new Token(TokenType1.STRING_LITERAL,
-                                    matcher.group(), line, column));
+                        tokenValue, line, column));
             }
             else if (matcher.group("OP") != null) {
-                tokens.add(createOperatorToken(matcher.group(), line, column));
+                tokens.add(createOperatorToken(tokenValue, line, column));
             }
             else if (matcher.group("SEPARATOR") != null) {
-                tokens.add(createSeparatorToken(matcher.group(), line, column));
+                tokens.add(createSeparatorToken(tokenValue, line, column));
             }
             else if (matcher.group("IDENTIFIER") != null) {
                 tokens.add(new Token(TokenType1.IDENTIFIER,
-                                    matcher.group(), line, column));
-            }
-            else if (matcher.group("COMMENT") != null) {
-                // Пропускаем комментарии
-                updateLineInfo(matcher.group(), line, lineStart);
-                continue;
+                        tokenValue, line, column));
             }
             else if (matcher.group("WHITESPACE") != null) {
-                updateLineInfo(matcher.group(), line, lineStart);
+                updateLineInfo(tokenValue, line, lineStart);
                 continue;
             }
             else if (matcher.group("UNKNOWN") != null) {
                 throw new RuntimeException("Unexpected character at line " +
-                    line + ", column " + column + ": '" + matcher.group() + "'");
+                        line + ", column " + column + ": '" + matcher.group() + "'");
             }
+
+            // Обновляем информацию о строках после добавления токена
+            updateLineInfo(tokenValue, line, lineStart);
         }
 
         tokens.add(new Token(TokenType1.EOF, "", line, pos - lineStart + 1));
         return tokens;
     }
 
+    private void updateLineInfo(String text, int line, int lineStart) {
+        for (char c : text.toCharArray()) {
+            if (c == '\n') {
+                line++;
+                lineStart = pos; // Исправлено: теперь pos указывает на позицию после токена
+            }
+        }
+    }
+
     private Token createKeywordToken(String value, int line, int column) {
         return new Token(
-            TokenType1.valueOf("KEYWORD_" + value.toUpperCase()),
-            value, line, column
+                TokenType1.valueOf("KEYWORD_" + value.toUpperCase()),
+                value, line, column
         );
     }
 
@@ -164,14 +176,4 @@ public class GLSLLexer {
         };
         return new Token(type, value, line, column);
     }
-    
-    private void updateLineInfo(String text, int line, int lineStart) {
-        for (char c : text.toCharArray()) {
-            if (c == '\n') {
-                line++;
-                lineStart = pos;
-            }
-        }
-    }
-
 }
